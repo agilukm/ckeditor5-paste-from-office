@@ -12,6 +12,7 @@
 import DomConverter from '@ckeditor/ckeditor5-engine/src/view/domconverter';
 
 import { normalizeSpacing, normalizeSpacerunSpans } from './space';
+import { normalizeEquations } from './mathtex';
 
 /**
  * Parses provided HTML extracting contents of `<body>` and `<style>` tags.
@@ -25,7 +26,7 @@ import { normalizeSpacing, normalizeSpacerunSpans } from './space';
  * separate `style` tag from the source HTML.
  * @returns {String} result.stylesString All `style` tags contents combined in the order of occurrence into one string.
  */
-export function parseHtml( htmlString ) {
+export function parseHtml( htmlString, plainString ) {
 	const domParser = new DOMParser();
 
 	// Remove Word specific "if comments" so content inside is not omitted by the parser.
@@ -40,6 +41,8 @@ export function parseHtml( htmlString ) {
 
 	// Get `innerHTML` first as transforming to View modifies the source document.
 	const bodyString = htmlDocument.body.innerHTML;
+
+	normalizeEquations( htmlDocument, plainString );
 
 	// Transform document.body to View.
 	const bodyView = documentToView( htmlDocument );

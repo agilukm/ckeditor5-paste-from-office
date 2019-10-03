@@ -31,7 +31,7 @@ export default class MSWordNormalizer {
 	 * @inheritDoc
 	 */
 	execute( data ) {
-		const { body, stylesString } = parseHtml( data.dataTransfer.getData( 'text/html' ) );
+		const { body, stylesString } = parseHtml( data.dataTransfer.getData( 'text/html' ), data.dataTransfer.getData( 'text/plain' ) );
 
 		transformListItemLikeElementsIntoLists( body, stylesString );
 		replaceImagesSourceWithBase64( body, data.dataTransfer.getData( 'text/rtf' ) );
