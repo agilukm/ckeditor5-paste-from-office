@@ -26,7 +26,7 @@ import { normalizeEquations } from './mathtex';
  * separate `style` tag from the source HTML.
  * @returns {String} result.stylesString All `style` tags contents combined in the order of occurrence into one string.
  */
-export function parseHtml( htmlString, plainString ) {
+export function parseHtml( htmlString ) {
 	const domParser = new DOMParser();
 
 	// Remove Word specific "if comments" so content inside is not omitted by the parser.
@@ -42,7 +42,7 @@ export function parseHtml( htmlString, plainString ) {
 	// Get `innerHTML` first as transforming to View modifies the source document.
 	const bodyString = htmlDocument.body.innerHTML;
 
-	normalizeEquations( htmlDocument, plainString );
+	normalizeEquations( htmlDocument );
 
 	// Transform document.body to View.
 	const bodyView = documentToView( htmlDocument );

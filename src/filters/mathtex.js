@@ -1,134 +1,260 @@
-export function normalizeEquations( htmlDocument, plainString ) {
-	const lines = plainString.split( /\r?\n/ );
-	if ( lines.length > 1 ) {
-		lines.pop();
-	}
+export const supportedEntities = {
+	'∑': 'sum',
+	'∫': 'int',
+	'∬': 'iint',
+	'∭': 'iiint',
+	'∮': 'oint',
+	'∏': 'prod',
+	'∐': 'coprod',
+	'∯': 'oiint',
+	'⨂': 'bigotimes',
+	'⨁': 'bigoplus',
+	'⨀': 'bigodot',
+	'⨄': 'biguplus',
+	'∰': 'oiiint',
+	'⋁': 'bigvee',
+	'⋀': 'bigwedge',
+	'⋂': 'bigcap',
+	'⋃': 'bigcup',
+	'⨆': 'bigsqcup',
+	'undOvr': 'int',
+	'subSup': 'int',
+	'±': 'pm',
+	'∞': 'infty',
+	'π': 'pi',
+	'ρ': 'rho',
+	'θ': 'theta'
+};
 
-	const parts = htmlDocument.body.children;
+export function normalizeEquations( htmlDocument ) {
+	const parser = new DOMParser(); // eslint-disable-line
 
-	const partsByLines = [];
+	const comments = findComments( htmlDocument );
+	// console.log(comments); // eslint-disable-line
 
-	for ( let i = 0; i < parts.length; i++ ) {
-		const part = parts[ i ];
-		if ( part.tagName.toLowerCase() === 'table' ) {
-			const table = part;
-			const rows = table.getElementsByTagName( 'tr' );
-			for ( let j = 0; j < rows.length; j++ ) {
-				const row = rows[ j ];
-				partsByLines.push( row );
+	comments.forEach( comment => {
+		const commentTextContent = comment.textContent;
+		const re = new RegExp( /^\[if gte msEquation 12\]>((.|[\r?\n])*?)<!\[endif\]$/ );
+
+		const found = commentTextContent.match( re );
+		if ( found ) {
+			let mathString = found[ 1 ];
+			// console.log( mathString ); // eslint-disable-line
+
+			// http://www.datypic.com/sc/ooxml/e-m_oMath-1.html
+
+			// Add namescape
+			mathString = mathString.replace( /^(<)(.*?)(>)/, ( match, p1, p2, p3 ) => {
+				return p1 + p2 + ' xmlns:m=\'http://schemas.openxmlformats.org/officeDocument/2006/math\'' + p3;
+			} );
+
+			mathString = removeTag( mathString, 'span' );
+			mathString = removeTag( mathString, 'span' );
+			mathString = removeTag( mathString, 'i' );
+
+			// console.log( mathString ); // eslint-disable-line
+
+			const mathDoc = parser.parseFromString( mathString, 'text/xml' );
+			const rootElement = mathDoc.documentElement;
+
+			// console.log(rootElement); // eslint-disable-line
+
+			const eqBuilder = {
+				maxDepth: 0,
+				parts: []
+			};
+			traverseElement( rootElement, eqBuilder, eqBuilder.parts, 0 );
+
+			const equation = eqBuilder.parts.flat( eqBuilder.maxDepth + 1 ).join( '' );
+
+			// console.log( eqBuilder ); // eslint-disable-line
+			// console.log( equation ); // eslint-disable-line
+
+			// Find equation img parent span
+			const endMsEquationElement = comment.nextSibling;
+			const targetElement = endMsEquationElement.nextSibling;
+
+			// Create mathtex element
+			const mathtex = document.createElement( 'span' ); // eslint-disable-line
+			mathtex.classList.add( 'math-tex' );
+
+			// Inline equation has position: relative; css class
+			if ( targetElement.style.position === 'relative' ) {
+				mathtex.innerHTML = '\\(' + equation + '\\)';
+			} else {
+				mathtex.innerHTML = '\\[' + equation + '\\]';
 			}
-		} else {
-			partsByLines.push( part );
+
+			// Replace span with mathjax element
+			const parent = comment.parentNode;
+			parent.replaceChild( mathtex, targetElement );
 		}
-	}
-
-	if ( lines.length === partsByLines.length ) {
-		for ( let i = 0; i < partsByLines.length; i++ ) {
-			const part = partsByLines[ i ];
-			const line = lines[ i ];
-
-			const nodes = part.childNodes;
-
-			let lineFromNode = '';
-			let equationCounter = 0;
-			for ( let j = 0; j < nodes.length; j++ ) {
-				const node = nodes[ j ];
-				// If node is comment
-				const commentType = Node.COMMENT_NODE; // eslint-disable-line
-				if ( node.nodeType === commentType ) {
-					const commentNode = node;
-					const comment = commentNode.textContent;
-					if ( comment.match( /\[if gte msEquation 12]>/g ) ) {
-						equationCounter++;
-					}
-				}
-				// eslint-disable-next-line
-				if ( node.nodeType === Node.ELEMENT_NODE || node.nodeType === Node.TEXT_NODE ) {
-					lineFromNode += node.textContent;
-				}
-			}
-
-			// Skip if don't have any equation
-			if ( equationCounter === 0 ) {
-				continue;
-			}
-
-			const equations = parseLines( line, lineFromNode, equationCounter );
-
-			const images = part.getElementsByTagName( 'img' );
-			for ( let j = 0; j < images.length; j++ ) {
-				const mathtex = document.createElement( 'span' ); // eslint-disable-line
-				mathtex.classList.add( 'math-tex' );
-				mathtex.innerHTML = '\\(' + equations[ j ] + '\\)';
-
-				const img = images[ j ];
-				const parent = img.parentNode;
-				parent.replaceChild( mathtex, img );
-			}
-		}
-	} else {
-		console.warn( 'math-tex-parse-lines-not-equals: Plain text lines count is not equal with HTML data' ); // eslint-disable-line
-	}
+	} );
 }
 
-function parseLines( line, lineFromNode, equationCounter ) {
-	const equations = [];
-	let equation = '';
-	let charCounter = 0;
-	let newEquation = true;
-	// Todo: Check if is display equation
-
-	// Replace all spaces to non breaking spaces.
-	let lineFiltered = line;
-	lineFiltered = lineFiltered.replace( /&nbsp;/g, ' ' );
-	lineFiltered = lineFiltered.trim();
-
-	// Fixme: this breaks greek letters etc.
-	// Remove all extra spaces
-	lineFiltered = lineFiltered.replace( /\\ /g, '' );
-
-	// Todo: replace '\sqrtxy' to '\sqrt{x}y'
-	lineFiltered = lineFiltered.replace( /\s/g, '\u00A0' ); // Replcae all spaces to non breaking spaces
-
-	let lineFromNodeFiltered = lineFromNode;
-	lineFromNodeFiltered = lineFromNodeFiltered.replace( /\r?\n|\r/g, ' ' ); // Line break is same as space
-	lineFromNodeFiltered = lineFromNodeFiltered.replace( /&nbsp;/g, ' ' );
-	lineFromNodeFiltered = lineFromNodeFiltered.trim();
-	lineFromNodeFiltered = lineFromNodeFiltered.replace( /\s/g, '\u00A0' ); // Replcae all spaces to non breaking spaces
-
-	// eslint-disable-next-line
-	// console.log( '%c' + lineFiltered + ' %c' + lineFromNodeFiltered + ' %c', 'color:green', 'color:red','color:white' );
-
-	// Let check line char by char
-	for ( let j = 0; j < lineFiltered.length; j++ ) {
-		const charFromLine = lineFiltered.charAt( j );
-		const charFromNode = lineFromNodeFiltered.charAt( j - charCounter );
-		// Jump to next iteration if has same char
-		if ( charFromLine === charFromNode && charFromLine !== '\n' ) {
-			if ( !newEquation ) {
-				equations.push( equation.trim() );
-				equation = '';
-				newEquation = true;
-			}
-			continue;
+function findComments( el ) {
+	const arr = [];
+	for ( let i = 0; i < el.childNodes.length; i++ ) {
+		const node = el.childNodes[ i ];
+		// eslint-disable-next-line
+		if( node.nodeType === Node.COMMENT_NODE ) {
+			arr.push( node );
 		} else {
-			equation += charFromLine;
-			charCounter++;
-			if ( newEquation ) {
-				newEquation = false;
-			}
+			// eslint-disable-next-line
+			arr.push.apply( arr, findComments( node ) );
 		}
 	}
-	// Add last one
-	if ( !newEquation ) {
-		equations.push( equation.trim() );
-		equation = '';
-		newEquation = true;
+	return arr;
+}
+
+function removeTag( html, tag ) {
+	// Not working with self-closing tags
+	const re = new RegExp( '<' + tag + '((.|[\\r?\\n])*?)>((.|[\\r?\\n])*?)<\\/' + tag + '>', 'g' );
+	const inside = html.replace( re, ( match, element, attributes, children ) => children );
+
+	// Recursive
+	const found = inside.match( re );
+	if ( found ) {
+		return removeTag( inside, tag );
 	}
 
-	if ( equations.length !== equationCounter ) {
-		console.warn( 'Couldn\'t parse all equations' ); // eslint-disable-line
+	return inside;
+}
+
+function traverseElement( element, eqBuilder, parts, depth ) {
+	let childrenTraversed = false;
+	const childrenParts = [];
+
+	// Deeper than even?
+	if ( depth > eqBuilder.maxDepth ) {
+		eqBuilder.maxDepth = depth;
 	}
 
-	return equations;
+	switch ( element.tagName ) {
+		case 'm:rad': {
+			parts.push( '\\sqrt{' );
+			parts.push( childrenParts );
+			parts.push( '}' );
+			break;
+		}
+		case 'm:f': {
+			const children = element.childNodes;
+			for ( let i = 0; i < children.length; i++ ) {
+				const child = children[ i ];
+				if ( child.tagName === 'm:num' ) {
+					const numParts = [];
+					traverseElement( child, eqBuilder, numParts, depth + 1 );
+					parts.push( '\\frac{' );
+					parts.push( numParts );
+					parts.push( '}' );
+				} else if ( child.tagName === 'm:den' ) {
+					const denParts = [];
+					traverseElement( child, eqBuilder, denParts, depth + 1 );
+					parts.push( '{' );
+					parts.push( denParts );
+					parts.push( '}' );
+				}
+			}
+			childrenTraversed = true;
+			break;
+		}
+		case 'm:sup': {
+			parts.push( '^{' );
+			parts.push( childrenParts );
+			parts.push( '}' );
+			break;
+		}
+		case 'm:sub': {
+			parts.push( '_{' );
+			parts.push( childrenParts );
+			parts.push( '}' );
+			break;
+		}
+		case 'm:d': {
+			parts.push( '(' );
+			parts.push( childrenParts );
+			parts.push( ')' );
+			break;
+		}
+		case 'm:nary': {
+			const chrElement = element.querySelector( 'chr' ) || element.querySelector( 'limLoc' );
+			if ( !chrElement ) {
+				break;
+			}
+			const operatorValue = chrElement.getAttribute( 'm:val' );
+			const operatorEntity = supportedEntities[ operatorValue ];
+			if ( typeof operatorEntity === 'undefined' ) {
+				if ( operatorValue ) {
+					console.warn( 'Operator entity (' + operatorValue + ') in\'t yet supported'); // eslint-disable-line
+				}
+				break;
+			}
+			parts.push( '\\' );
+			parts.push( operatorEntity );
+
+			const children = element.childNodes;
+			for ( let i = 0; i < children.length; i++ ) {
+				const child = children[ i ];
+				if ( child.tagName === 'm:sub' ) {
+					const subParts = [];
+					traverseElement( child, eqBuilder, subParts, depth + 1 );
+					// Todo: if content empty, don't push
+					parts.push( '_{' );
+					parts.push( subParts );
+					parts.push( '}' );
+				} else if ( child.tagName === 'm:sup' ) {
+					const supParts = [];
+					traverseElement( child, eqBuilder, supParts, depth + 1 );
+					// Todo: if content empty, don't push
+					parts.push( '^{' );
+					parts.push( supParts );
+					parts.push( '}' );
+				} else if ( child.tagName === 'm:e' ) {
+					const insideParts = [];
+					traverseElement( child, eqBuilder, insideParts, depth + 1 );
+					parts.push( '{' );
+					parts.push( insideParts );
+					parts.push( '}' );
+				}
+			}
+			childrenTraversed = true;
+			break;
+		}
+		default: {
+			parts.push( childrenParts );
+			break;
+		}
+	}
+
+	switch ( element.nodeType ) {
+		case Node.TEXT_NODE: { // eslint-disable-line
+			let textContent = element.textContent;
+			// Try convert value to entity
+			textContent = textContent.replace( /\s/g, ' ' );
+			textContent = textContent.replace( /[^\x00-\x7F]{1}/g, val => { // eslint-disable-line
+				const entity = supportedEntities[ val ];
+				if ( typeof entity === 'undefined' ) {
+					console.warn( 'Entity (' + val + ') in\'t yet supported'); // eslint-disable-line
+					return val;
+				}
+				return '{\\' + entity + '}';
+				// or return '\\' + entity + ' ';
+			} );
+
+			childrenParts.push( textContent );
+			break;
+		}
+		default: {
+			break;
+		}
+	}
+
+	// Default traverse
+	if ( !childrenTraversed ) {
+		// Recursive
+		const children = element.childNodes;
+		for ( let i = 0; i < children.length; i++ ) {
+			traverseElement( children[ i ], eqBuilder, childrenParts, depth + 1 );
+		}
+	}
 }
