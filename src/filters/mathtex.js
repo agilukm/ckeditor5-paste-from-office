@@ -130,13 +130,16 @@ function traverseElement( element, eqBuilder, parts, depth ) {
 		eqBuilder.maxDepth = depth;
 	}
 
-	switch ( element.tagName ) {
+	const tagName = element.tagName;
+	switch ( tagName ) {
+		// Radical Function
 		case 'm:rad': {
 			parts.push( '\\sqrt{' );
 			parts.push( childrenParts );
 			parts.push( '}' );
 			break;
 		}
+		// Fraction Function
 		case 'm:f': {
 			const children = element.childNodes;
 			for ( let i = 0; i < children.length; i++ ) {
@@ -158,24 +161,28 @@ function traverseElement( element, eqBuilder, parts, depth ) {
 			childrenTraversed = true;
 			break;
 		}
+		// Upper limit (n-ary)
 		case 'm:sup': {
 			parts.push( '^{' );
 			parts.push( childrenParts );
 			parts.push( '}' );
 			break;
 		}
+		// Lower limit (n-ary)
 		case 'm:sub': {
 			parts.push( '_{' );
 			parts.push( childrenParts );
 			parts.push( '}' );
 			break;
 		}
+		// Delimiter Function
 		case 'm:d': {
 			parts.push( '(' );
 			parts.push( childrenParts );
 			parts.push( ')' );
 			break;
 		}
+		// n-ary Operator Function
 		case 'm:nary': {
 			const chrElement = element.querySelector( 'chr' ) || element.querySelector( 'limLoc' );
 			if ( !chrElement ) {
@@ -220,7 +227,38 @@ function traverseElement( element, eqBuilder, parts, depth ) {
 			childrenTraversed = true;
 			break;
 		}
+		// Matrix Function
+		case 'm:m': {
+			parts.push( '\\begin{matrix}' );
+
+			// Rows
+			const children = element.childNodes;
+			for ( let i = 0; i < children.length; i++ ) {
+				const child = children[ i ];
+				if ( child.tagName === 'm:mr' ) {
+					const rowParts = [];
+
+					// Columns
+					const grandchildren = child.childNodes;
+					for ( let j = 0; j < grandchildren.length; j++ ) {
+						const grandchildrenParts = [];
+						traverseElement( grandchildren[ j ], eqBuilder, grandchildrenParts, depth + 1 );
+						rowParts.push( grandchildrenParts );
+						rowParts.push( '&' );
+					}
+
+					parts.push( rowParts );
+					rowParts.push( '\\\\' );
+				}
+			}
+			parts.push( '\\end{matrix}' );
+			childrenTraversed = true;
+			break;
+		}
 		default: {
+			if ( typeof tagName !== 'undefined' ) {
+				// console.warn( 'Element (' + tagName + ') is\'t supported yet'); // eslint-disable-line
+			}
 			parts.push( childrenParts );
 			break;
 		}
@@ -234,7 +272,7 @@ function traverseElement( element, eqBuilder, parts, depth ) {
 			textContent = textContent.replace( /[^\x00-\x7F]{1}/g, val => { // eslint-disable-line
 				const entity = supportedEntities[ val ];
 				if ( typeof entity === 'undefined' ) {
-					console.warn( 'Entity (' + val + ') in\'t yet supported'); // eslint-disable-line
+					console.warn( 'Entity (' + val + ') is\'t supported yet'); // eslint-disable-line
 					return val;
 				}
 				return '{\\' + entity + '}';
