@@ -1,3 +1,7 @@
+/* globals DOMParser, Node, console */
+
+import global from '@ckeditor/ckeditor5-utils/src/dom/global';
+
 export const supportedEntities = {
 	'∑': 'sum',
 	'∫': 'int',
@@ -27,10 +31,10 @@ export const supportedEntities = {
 };
 
 export function normalizeEquations( htmlDocument ) {
-	const parser = new DOMParser(); // eslint-disable-line
+	const parser = new DOMParser();
 
 	const comments = findComments( htmlDocument );
-	// console.log(comments); // eslint-disable-line
+	// console.log( comments );
 
 	comments.forEach( comment => {
 		const commentTextContent = comment.textContent;
@@ -39,7 +43,7 @@ export function normalizeEquations( htmlDocument ) {
 		const found = commentTextContent.match( re );
 		if ( found ) {
 			let mathString = found[ 1 ];
-			// console.log( mathString ); // eslint-disable-line
+			// console.log( mathString );
 
 			// http://www.datypic.com/sc/ooxml/e-m_oMath-1.html
 
@@ -52,12 +56,12 @@ export function normalizeEquations( htmlDocument ) {
 			mathString = removeTag( mathString, 'span' );
 			mathString = removeTag( mathString, 'i' );
 
-			// console.log( mathString ); // eslint-disable-line
+			// console.log( mathString );
 
 			const mathDoc = parser.parseFromString( mathString, 'text/xml' );
 			const rootElement = mathDoc.documentElement;
 
-			// console.log(rootElement); // eslint-disable-line
+			// console.log( rootElement );
 
 			const eqBuilder = {
 				maxDepth: 0,
@@ -67,15 +71,15 @@ export function normalizeEquations( htmlDocument ) {
 
 			const equation = eqBuilder.parts.flat( eqBuilder.maxDepth + 1 ).join( '' );
 
-			// console.log( eqBuilder ); // eslint-disable-line
-			// console.log( equation ); // eslint-disable-line
+			// console.log( eqBuilder );
+			// console.log( equation );
 
 			// Find equation img parent span
 			const endMsEquationElement = comment.nextSibling;
 			const targetElement = endMsEquationElement.nextSibling;
 
 			// Create mathtex element
-			const mathtex = document.createElement( 'span' ); // eslint-disable-line
+			const mathtex = global.document.createElement( 'span' );
 			mathtex.classList.add( 'math-tex' );
 
 			// Inline equation has position: relative; css class
@@ -96,12 +100,10 @@ function findComments( el ) {
 	const arr = [];
 	for ( let i = 0; i < el.childNodes.length; i++ ) {
 		const node = el.childNodes[ i ];
-		// eslint-disable-next-line
-		if( node.nodeType === Node.COMMENT_NODE ) {
+		if ( node.nodeType === Node.COMMENT_NODE ) {
 			arr.push( node );
 		} else {
-			// eslint-disable-next-line
-			arr.push.apply( arr, findComments( node ) );
+			arr.push.apply( arr, findComments( node ) ); // eslint-disable-line
 		}
 	}
 	return arr;
@@ -192,7 +194,7 @@ function traverseElement( element, eqBuilder, parts, depth ) {
 			const operatorEntity = supportedEntities[ operatorValue ];
 			if ( typeof operatorEntity === 'undefined' ) {
 				if ( operatorValue ) {
-					console.warn( 'Operator entity (' + operatorValue + ') in\'t yet supported'); // eslint-disable-line
+					console.warn( 'Operator entity (' + operatorValue + ') in\'t yet supported' );
 				}
 				break;
 			}
@@ -257,7 +259,7 @@ function traverseElement( element, eqBuilder, parts, depth ) {
 		}
 		default: {
 			if ( typeof tagName !== 'undefined' ) {
-				// console.warn( 'Element (' + tagName + ') is\'t supported yet'); // eslint-disable-line
+				// console.warn( 'Element (' + tagName + ') is\'t supported yet' );
 			}
 			parts.push( childrenParts );
 			break;
@@ -265,14 +267,15 @@ function traverseElement( element, eqBuilder, parts, depth ) {
 	}
 
 	switch ( element.nodeType ) {
-		case Node.TEXT_NODE: { // eslint-disable-line
+		case Node.TEXT_NODE: {
 			let textContent = element.textContent;
 			// Try convert value to entity
 			textContent = textContent.replace( /\s/g, ' ' );
-			textContent = textContent.replace( /[^\x00-\x7F]{1}/g, val => { // eslint-disable-line
+			// eslint-disable-next-line
+			textContent = textContent.replace( /[^\x00-\x7F]{1}/g, val => {
 				const entity = supportedEntities[ val ];
 				if ( typeof entity === 'undefined' ) {
-					console.warn( 'Entity (' + val + ') is\'t supported yet'); // eslint-disable-line
+					console.warn( 'Entity (' + val + ') is\'t supported yet' );
 					return val;
 				}
 				return '{\\' + entity + '}';
