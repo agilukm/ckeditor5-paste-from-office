@@ -1,5 +1,5 @@
 /**
- * @license Copyright (c) 2003-2019, CKSource - Frederico Knabben. All rights reserved.
+ * @license Copyright (c) 2003-2020, CKSource - Frederico Knabben. All rights reserved.
  * For licensing, see LICENSE.md or https://ckeditor.com/legal/ckeditor-oss-license
  */
 
@@ -65,65 +65,6 @@ export function unwrapParagraphInListItem( documentFragment, writer ) {
 
 			if ( firstChild.is( 'p' ) ) {
 				writer.unwrapElement( firstChild );
-			}
-		}
-	}
-}
-
-/**
- * Fix structure of nested lists to follow HTML guidelines and normalize content in predictable way.
- *
- * 1. Move nested lists to have sure that list items are the only children of lists.
- *
- *		before:                           after:
- *		OL                                OL
- *		|-> LI                            |-> LI
- *		|-> OL                                |-> OL
- *		    |-> LI                                |-> LI
- *
- * 2. Remove additional indentation which cannot be recreated in HTML structure.
- *
- *		before:                           after:
- *		OL                                OL
- *		|-> LI                            |-> LI
- *		    |-> OL                            |-> OL
- *		        |-> OL                            |-> LI
- *		        |   |-> OL                        |-> LI
- *		        |       |-> OL
- *		        |           |-> LI
- *		        |-> LI
- *
- *		before:                           after:
- *		OL                                OL
- *		|-> OL                             |-> LI
- *		    |-> OL
- *		         |-> OL
- *		             |-> LI
- *
- * @param {module:engine/view/documentfragment~DocumentFragment} documentFragment
- * @param {module:engine/view/upcastwriter~UpcastWriter} writer
- */
-export function fixListIndentation( documentFragment, writer ) {
-	for ( const value of writer.createRangeIn( documentFragment ) ) {
-		const element = value.item;
-
-		// case 1: The previous sibling of a list is a list item.
-		if ( element.is( 'li' ) ) {
-			const next = element.nextSibling;
-
-			if ( next && isList( next ) ) {
-				writer.remove( next );
-				writer.insertChild( element.childCount, next, element );
-			}
-		}
-
-		// case 2: The list is the first child of another list.
-		if ( isList( element ) ) {
-			let firstChild = element.getChild( 0 );
-
-			while ( isList( firstChild ) ) {
-				writer.unwrapElement( firstChild );
-				firstChild = element.getChild( 0 );
 			}
 		}
 	}
@@ -260,9 +201,15 @@ function getListItemData( element ) {
 	const listStyle = element.getStyle( 'mso-list' );
 
 	if ( listStyle ) {
-		data.id = parseInt( listStyle.match( /(^|\s+)l(\d+)/i )[ 2 ] );
-		data.order = parseInt( listStyle.match( /\s*lfo(\d+)/i )[ 1 ] );
-		data.indent = parseInt( listStyle.match( /\s*level(\d+)/i )[ 1 ] );
+		const idMatch = listStyle.match( /(^|\s+)l(\d+)/i );
+		const orderMatch = listStyle.match( /\s*lfo(\d+)/i );
+		const indentMatch = listStyle.match( /\s*level(\d+)/i );
+
+		if ( idMatch && orderMatch && indentMatch ) {
+			data.id = idMatch[ 2 ];
+			data.order = orderMatch[ 1 ];
+			data.indent = indentMatch[ 1 ];
+		}
 	}
 
 	return data;
