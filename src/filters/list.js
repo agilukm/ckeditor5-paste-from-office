@@ -7,7 +7,6 @@
  * @module paste-from-office/filters/list
  */
 
-import Element from '@ckeditor/ckeditor5-engine/src/view/element';
 import Matcher from '@ckeditor/ckeditor5-engine/src/view/matcher';
 import UpcastWriter from '@ckeditor/ckeditor5-engine/src/view/upcastwriter';
 
@@ -19,7 +18,7 @@ import UpcastWriter from '@ckeditor/ckeditor5-engine/src/view/upcastwriter';
  *		<p class=MsoListParagraphCxSpFirst style='mso-list:l1 level1 lfo1'>...</p> // Paragraph based list.
  *		<h1 style='mso-list:l0 level1 lfo1'>...</h1> // Heading 1 based list.
  *
- * @param {module:engine/view/documentfragment~DocumentFragment} documentFragment The view structure which to transform.
+ * @param {module:engine/view/documentfragment~DocumentFragment} documentFragment The view structure to be transformed.
  * @param {String} stylesString Styles from which list-like elements styling will be extracted.
  */
 export function transformListItemLikeElementsIntoLists( documentFragment, stylesString ) {
@@ -27,7 +26,7 @@ export function transformListItemLikeElementsIntoLists( documentFragment, styles
 		return;
 	}
 
-	const writer = new UpcastWriter();
+	const writer = new UpcastWriter( documentFragment.document );
 	const itemLikeElements = findAllItemLikeElements( documentFragment, writer );
 
 	if ( !itemLikeElements.length ) {
@@ -35,12 +34,43 @@ export function transformListItemLikeElementsIntoLists( documentFragment, styles
 	}
 
 	let currentList = null;
+	let currentIndentation = 1;
 
 	itemLikeElements.forEach( ( itemLikeElement, i ) => {
-		if ( !currentList || isNewListNeeded( itemLikeElements[ i - 1 ], itemLikeElement ) ) {
+		const isDifferentList = isNewListNeeded( itemLikeElements[ i - 1 ], itemLikeElement );
+		const previousItemLikeElement = isDifferentList ? null : itemLikeElements[ i - 1 ];
+		const indentationDifference = getIndentationDifference( previousItemLikeElement, itemLikeElement );
+
+		if ( isDifferentList ) {
+			currentList = null;
+			currentIndentation = 1;
+		}
+
+		if ( !currentList || indentationDifference !== 0 ) {
 			const listStyle = detectListStyle( itemLikeElement, stylesString );
 
-			currentList = insertNewEmptyList( listStyle, itemLikeElement.element, writer );
+			if ( !currentList ) {
+				currentList = insertNewEmptyList( listStyle, itemLikeElement.element, writer );
+			} else if ( itemLikeElement.indent > currentIndentation ) {
+				const lastListItem = currentList.getChild( currentList.childCount - 1 );
+				const lastListItemChild = lastListItem.getChild( lastListItem.childCount - 1 );
+
+				currentList = insertNewEmptyList( listStyle, lastListItemChild, writer );
+
+				currentIndentation += 1;
+			} else if ( itemLikeElement.indent < currentIndentation ) {
+				const differentIndentation = currentIndentation - itemLikeElement.indent;
+
+				currentList = findParentListAtLevel( currentList, differentIndentation );
+
+				currentIndentation = parseInt( itemLikeElement.indent );
+			}
+
+			if ( itemLikeElement.indent <= currentIndentation ) {
+				if ( !currentList.is( listStyle.type ) ) {
+					currentList = writer.rename( listStyle.type, currentList );
+				}
+			}
 		}
 
 		const listItem = transformElementIntoListItem( itemLikeElement.element, writer );
@@ -156,14 +186,16 @@ function detectListStyle( listLikeItem, stylesString ) {
 //
 // @param {Object} listStyle List style object which determines the type of newly created list.
 // Usually a result of `detectListStyle()` function.
-// @param {module:engine/view/element~Element} element Element before which list is inserted.
+// @param {module:engine/view/element~Element} element Element after which list is inserted.
 // @param {module:engine/view/upcastwriter~UpcastWriter} writer
 // @returns {module:engine/view/element~Element} Newly created list element.
-function insertNewEmptyList( listStyle, element, writer ) {
-	const list = new Element( listStyle.type );
-	const position = element.parent.getChildIndex( element );
 
-	writer.insertChild( position, list, element.parent );
+function insertNewEmptyList( listStyle, element, writer ) {
+	const parent = element.parent;
+	const list = writer.createElement( listStyle.type );
+	const position = parent.getChildIndex( element ) + 1;
+
+	writer.insertChild( position, list, parent );
 
 	return list;
 }
@@ -244,6 +276,10 @@ function removeBulletElement( element, writer ) {
 // @param {Object} currentItem
 // @returns {Boolean}
 function isNewListNeeded( previousItem, currentItem ) {
+	if ( !previousItem ) {
+		return true;
+	}
+
 	if ( previousItem.id !== currentItem.id ) {
 		return true;
 	}
@@ -260,4 +296,39 @@ function isNewListNeeded( previousItem, currentItem ) {
 
 function isList( element ) {
 	return element.is( 'ol' ) || element.is( 'ul' );
+}
+
+// Calculates the indentation difference between two given list items (based on indent attribute
+// extracted from `mso-list` style, see #getListItemData).
+//
+// @param {Object} previousItem
+// @param {Object} currentItem
+// @returns {Number}
+function getIndentationDifference( previousItem, currentItem ) {
+	return previousItem ? currentItem.indent - previousItem.indent : currentItem.indent - 1;
+}
+
+// Finds parent list element (ul/ol) of a given list element with indentation level lower by a given value.
+//
+// @param {module:engine/view/element~Element} listElement List element from which to start looking for a parent list.
+// @param {Number} indentationDifference Indentation difference between lists.
+// @returns {module:engine/view/element~Element} Found list element with indentation level lower by a given value.
+function findParentListAtLevel( listElement, indentationDifference ) {
+	const ancestors = listElement.getAncestors( { parentFirst: true } );
+
+	let parentList = null;
+	let levelChange = 0;
+
+	for ( const ancestor of ancestors ) {
+		if ( ancestor.name === 'ul' || ancestor.name === 'ol' ) {
+			levelChange++;
+		}
+
+		if ( levelChange === indentationDifference ) {
+			parentList = ancestor;
+			break;
+		}
+	}
+
+	return parentList;
 }

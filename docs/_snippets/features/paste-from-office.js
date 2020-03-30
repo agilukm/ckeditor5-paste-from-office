@@ -64,11 +64,19 @@ ClassicEditor
 				'tableCellProperties'
 			]
 		},
+		fontFamily: {
+			supportAllValues: true
+		},
+		fontSize: {
+			supportAllValues: true
+		},
 		placeholder: 'Paste the content here to test the feature.',
 		cloudServices: CS_CONFIG
 	} )
 	.then( editor => {
 		window.editor = editor;
+		// Prevent showing a warning notification when user is pasting a content from MS Word or Google Docs.
+		window.preventPasteFromOfficeNotification = true;
 	} )
 	.catch( err => {
 		console.error( err.stack );
