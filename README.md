@@ -1,10 +1,11 @@
 CKEditor 5 paste from Office feature
 ==================================
 
+<h3 align=center>⚠⚠ This repository was moved ⚠⚠</h3>
+
+<p align=center>The package was moved to the <a href="https://github.com/ckeditor/ckeditor5/tree/master/packages">main repository</a>.</p>
+
 [![npm version](https://badge.fury.io/js/%40ckeditor%2Fckeditor5-paste-from-office.svg)](https://www.npmjs.com/package/@ckeditor/ckeditor5-paste-from-office)
-[![Build Status](https://travis-ci.org/ckeditor/ckeditor5-paste-from-office.svg?branch=master)](https://travis-ci.org/ckeditor/ckeditor5-paste-from-office)
-[![Coverage Status](https://coveralls.io/repos/github/ckeditor/ckeditor5-paste-from-office/badge.svg?branch=master)](https://coveralls.io/github/ckeditor/ckeditor5-paste-from-office?branch=master)
-<br>
 [![Dependency Status](https://david-dm.org/ckeditor/ckeditor5-paste-from-office/status.svg)](https://david-dm.org/ckeditor/ckeditor5-paste-from-office)
 [![devDependency Status](https://david-dm.org/ckeditor/ckeditor5-paste-from-office/dev-status.svg)](https://david-dm.org/ckeditor/ckeditor5-paste-from-office?type=dev)
 
