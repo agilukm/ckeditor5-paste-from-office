@@ -34,7 +34,6 @@ export function normalizeEquations( htmlDocument ) {
 	const parser = new DOMParser();
 
 	const comments = findComments( htmlDocument );
-	// console.log( comments );
 
 	comments.forEach( comment => {
 		const commentTextContent = comment.textContent;
@@ -43,9 +42,8 @@ export function normalizeEquations( htmlDocument ) {
 		const found = commentTextContent.match( re );
 		if ( found ) {
 			let mathString = found[ 1 ];
-			// console.log( mathString );
 
-			// http://www.datypic.com/sc/ooxml/e-m_oMath-1.html
+			// Microsoft Word math specification from http://www.datypic.com/sc/ooxml/e-m_oMath-1.html
 
 			// Add namescape
 			mathString = mathString.replace( /^(<)(.*?)(>)/, ( match, p1, p2, p3 ) => {
@@ -56,12 +54,9 @@ export function normalizeEquations( htmlDocument ) {
 			mathString = removeTag( mathString, 'span' );
 			mathString = removeTag( mathString, 'i' );
 
-			// console.log( mathString );
 
 			const mathDoc = parser.parseFromString( mathString, 'text/xml' );
 			const rootElement = mathDoc.documentElement;
-
-			// console.log( rootElement );
 
 			const eqBuilder = {
 				maxDepth: 0,
@@ -70,9 +65,6 @@ export function normalizeEquations( htmlDocument ) {
 			traverseElement( rootElement, eqBuilder, eqBuilder.parts, 0 );
 
 			const equation = eqBuilder.parts.flat( eqBuilder.maxDepth + 1 ).join( '' );
-
-			// console.log( eqBuilder );
-			// console.log( equation );
 
 			// Find equation img parent span
 			const endMsEquationElement = comment.nextSibling;
